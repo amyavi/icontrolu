@@ -8,18 +8,20 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scoreboard.Scoreboard;
-import org.bukkit.scoreboard.Team;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 
-import pw.kaboom.icontrolu.Main;
-import pw.kaboom.icontrolu.PlayerControl;
+import pw.kaboom.icontrolu.modules.ControlManager;
+import pw.kaboom.icontrolu.modules.PlayerControl;
 
 public final class CommandIcu implements CommandExecutor {
+    private final PlayerControl controlModule;
+
+    public CommandIcu(final PlayerControl controlModule) {
+        this.controlModule = controlModule;
+    }
+
     private void controlCommand(final Player controller, final String label, final String[] args) {
         if (args.length == 1) {
             controller.sendMessage(Component
@@ -47,16 +49,13 @@ public final class CommandIcu implements CommandExecutor {
             return;
         }
 
-        if (PlayerControl.getTarget(controller.getUniqueId()) != null) {
-            controller.sendMessage(
-                Component.text("You are already controlling \"")
-                    .append(Component.text(target.getName()))
-                    .append(Component.text("\""))
-                );
+        final ControlManager manager = controlModule.manager;
+        if (manager.hasController(controller.getUniqueId())) {
+            controller.sendMessage(Component.text("You are already controlling someone"));
             return;
         }
 
-        if (PlayerControl.getController(target.getUniqueId()) != null) {
+        if (manager.hasTarget(target.getUniqueId())) {
             controller.sendMessage(
                 Component.text("Player \"")
                     .append(Component.text(target.getName()))
@@ -65,7 +64,7 @@ public final class CommandIcu implements CommandExecutor {
             return;
         }
 
-        if (PlayerControl.getTarget(target.getUniqueId()) != null) {
+        if (manager.hasController(target.getUniqueId())) {
             controller.sendMessage(
                 Component.text("Player \"")
                     .append(Component.text(target.getName()))
@@ -82,9 +81,7 @@ public final class CommandIcu implements CommandExecutor {
         controller.teleportAsync(target.getLocation());
         controller.getInventory().setContents(target.getInventory().getContents());
 
-        PlayerControl.setTarget(controller.getUniqueId(), target);
-        PlayerControl.setController(target.getUniqueId(), controller);
-
+        manager.control(controller, target);
         controller.sendMessage(
             Component.text("You are now controlling \"")
                 .append(Component.text(target.getName()))
@@ -93,16 +90,14 @@ public final class CommandIcu implements CommandExecutor {
     }
 
     private void stopCommand(final Player controller) {
-        final Player target = PlayerControl.getTarget(controller.getUniqueId());
+        final Player target = controlModule.manager.removeController(controller.getUniqueId());
 
         if (target == null) {
             controller.sendMessage(Component.text("You are not controlling anyone at the moment"));
             return;
         }
 
-        PlayerControl.removeTarget(controller.getUniqueId());
-        PlayerControl.removeController(target.getUniqueId());
-        PlayerControl.scheduleVisibility(controller.getUniqueId());
+        controlModule.scheduleVisibility(controller.getUniqueId());
 
         controller.sendMessage(
             Component.text("You are no longer controlling \"")
